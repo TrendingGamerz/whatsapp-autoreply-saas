@@ -1,0 +1,10 @@
+{
+    "WEBHOOK_VERIFY_TOKEN": "CHANGE_THIS",
+    "WHATSAPP_API_TOKEN": "CHANGE_THIS",
+    "WHATSAPP_PHONE_NUMBER_ID": "CHANGE_THIS",
+    "BASE_URL": "https://your-railway-domain.up.railway.app",
+    "AUTO_REPLY_MESSAGE": "Thank you for your message! We'll reply you soon.",
+    "PRICE_TEXT": "Our basic plan: ₹199/month. Message 'BUY' to purchase.",
+    "ADDRESS_TEXT": "Visit us at: 123, Your Street",
+    "ALLOW_CUSTOM_REPLIES": true
+}

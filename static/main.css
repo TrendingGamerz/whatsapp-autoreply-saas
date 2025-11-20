@@ -1,0 +1,40 @@
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f7f7f7;
+    color: #222;
+}
+
+.container {
+    max-width: 800px;
+    margin: 40px auto;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.06)
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 14px;
+    background: #2b8be6;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px
+}
+
+input {
+    padding: 10px;
+    margin: 8px 0;
+    width: 100%
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px
+}
+
+th,td {
+    padding: 8px;
+    border-bottom: 1px solid #eee
+}
