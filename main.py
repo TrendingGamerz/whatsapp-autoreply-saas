@@ -62,7 +62,7 @@ def insert_led(phone, name, message):
 def get_leads():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT id, phone, number, message, timestamp, handled FROM leads ORDER BY id DESC')
+    c.execute('SELECT id, phone, name, message, timestamp, handled FROM leads ORDER BY id DESC')
     rows = c.fetchall()
     conn.close()
     return rows
