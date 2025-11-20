@@ -152,6 +152,9 @@ def login():
         else:
             flash('Wrong password', 'danger')
             return redirect(url_for('login'))
+    
+    # Handle GET request
+    return render_template('login.html')
         
 @app.route('/dashboard')
 def dashboard():
