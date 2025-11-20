@@ -51,7 +51,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-def insert_led(phone, name, message):
+def insert_lead(phone, name, message):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('INSERT INTO leads (phone, name, message, timestamp) VALUES (?,?,?,?)',
@@ -102,7 +102,7 @@ def webhook():
         if contacts:
             name = contacts[0].get('profile', {}).get('name', '')
 
-        insert_led(from_phone, name, text)
+        insert_lead(from_phone, name, text)
 
         reply_text = build_auto_reply(name, text)
         send_whatsapp_text(from_phone, reply_text)
