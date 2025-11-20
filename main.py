@@ -68,6 +68,16 @@ def init_db():
                 verify_token TEXT
     )''')
 
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE,
+                password_hash TEXT,
+                whatsapp_access_token TEXT,
+                whatsapp_phone_id TEXT,
+                whatsapp_verify_token TEXT
+    )''')
+
 
     conn.commit()
     conn.close()
@@ -168,20 +178,31 @@ def index():
 def signup():
     if request.method == 'POST':
         email = request.form.get('email')
-        password = generate_password_hash(request.form.get('password'))
+        password = request.form.get('password')
 
+        # Validate fields
+        if not email or not password:
+            flash("Email and password required", "danger")
+            return redirect(url_for('signup'))
+
+        # Hash password
+        password_hash = generate_password_hash(password)
+
+        # Save user
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         try:
-            c.execute("INSERT INTO users (email, password) VALUES (?, ?)", (email, password))
+            c.execute("INSERT INTO users (email, password_hash) VALUES (?, ?)", (email, password_hash))
             conn.commit()
-            conn.close()
-            flash("Account created successfully!", "success")
-            return redirect(url_for('login'))
-        except:
-            conn.close()
-            flash("Account already exists!", "danger")
+        except Exception as e:
+            print("Signup error:", e)
+            flash("Email already registered", "danger")
             return redirect(url_for('signup'))
+        conn.close()
+
+        flash("Account Created! You can now login.", "success")
+        return redirect(url_for('login'))
+
     return render_template('signup.html')
 
 @app.route('/login', methods=['GET', 'POST'])
