@@ -9,7 +9,7 @@ from datetime import datetime
 from flask import Flask, request, jsonify, render_template, redirect, url_for, send_file, flash
 from dotenv import load_dotenv
 from io import BytesIO
-from werkzeug.security import generate_password_hash, check_passowrd_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask import session 
 
 
@@ -196,11 +196,11 @@ def login():
         user = c.fetchone()
         conn.close()
 
-        if user and check_passowrd_hash(user[1], pwd):
+        if user and check_password_hash(user[1], pwd):
             session['user_id'] = user[0]
             return redirect(url_for('dashboard'))
         else:
-            flash("Wrong email or passowrd", "danger")
+            flash("Wrong email or password", "danger")
             return redirect(url_for('login'))
 
     return render_template('login.html')
