@@ -1,12 +1,17 @@
 import os
 import sqlite3
 import json
+import requests
+import csv
+
+
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template, redirect, url_for, send_file, flash
 from dotenv import load_dotenv
-import requests
 from io import BytesIO
-import csv
+from werkzeug.security import generate_password_hash, check_passowrd_hash
+from flask import session 
+
 
 # Load env
 load_dotenv()
@@ -38,9 +43,12 @@ DB_PATH = 'data.db'
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+
+    # Leads table
     c.execute('''
     CREATE TABLE IF NOT EXISTS leads (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER,
               phone TEXT,
               name TEXT,
               message TEXT,
@@ -48,6 +56,19 @@ def init_db():
               handled INTEGER DEFAULT 0
     )
     ''')
+
+    # User table 
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE,
+                password TEXT,
+                whatsapp_token TEXT,
+                phone_number_id TEXT,
+                verify_token TEXT
+    )''')
+
+
     conn.commit()
     conn.close()
 
@@ -62,7 +83,7 @@ def insert_lead(phone, name, message):
 def get_leads():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT id, phone, name, message, timestamp, handled FROM leads ORDER BY id DESC')
+    c.execute('SELECT id, phone, name, message, timestamp, handled FROM leads WHERE user_id=? ORDER BY id DESC', (user_id,))
     rows = c.fetchall()
     conn.close()
     return rows
@@ -143,24 +164,59 @@ def send_whatsapp_text(to_phone, text):
 def index():
     return render_template('index.html')
 
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = generate_password_hash(request.form.get('password'))
+
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        try:
+            c.execute("INSERT INTO users (email, password) VALUES (?, ?)", (email, password))
+            conn.commit()
+            conn.close()
+            flash("Account created successfully!", "success")
+            return redirect(url_for('login'))
+        except:
+            conn.close()
+            flash("Account already exists!", "danger")
+            return redirect(url_for('signup'))
+    return render_template('signup.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        email = request.form.get('email')
         pwd = request.form.get('password')
-        if pwd == ADMIN_PASSWORD:
+
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT id, password FROM users WHERE email=?", (email,))
+        user = c.fetchone()
+        conn.close()
+
+        if user and check_passowrd_hash(user[1], pwd):
+            session['user_id'] = user[0]
             return redirect(url_for('dashboard'))
         else:
-            flash('Wrong password', 'danger')
+            flash("Wrong email or passowrd", "danger")
             return redirect(url_for('login'))
+
+    return render_template('login.html')
     
     # Handle GET request
     return render_template('login.html')
         
 @app.route('/dashboard')
 def dashboard():
-    leads = get_leads()
-    total = len(leads)
-    return render_template('dashboard.html', leads=leads, total=total)
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+
+    leads = get_leads(user_id)
+    return render_template('dashboard.html', leads=leads, total=len(leads))
 
 @app.route('/export')
 def export():
