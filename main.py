@@ -6,11 +6,10 @@ import csv
 
 
 from datetime import datetime
-from flask import Flask, request, jsonify, render_template, redirect, url_for, send_file, flash
+from flask import Flask, request, jsonify, render_template, redirect, url_for, send_file, flash, session
 from dotenv import load_dotenv
 from io import BytesIO
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask import session 
+from werkzeug.security import generate_password_hash, check_password_hash 
 
 
 # Load env
@@ -25,7 +24,8 @@ except Exception:
     CONFIG = {}
 
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET', CONFIG.get('FLASK_SECRET', 'dev_secret'))
+app.secret_key = os.getenv("FLASK_SECRET", "dev_secret")
+
 
 # env vars (Railway/Render)
 WHATSAPP_VERIFY_TOKEN = os.getenv('WHATSAPP_VERIFY_TOKEN', CONFIG.get('WEBHOOK_VERIFY_TOKEN', 'verify_token'))
@@ -38,49 +38,38 @@ AUTO_REPLY_MESSAGE = CONFIG.get('AUTO_REPLY_MESSAGE', 'Thanks for messaging. We 
 
 DB_PATH = 'data.db'
 
-# ---- Database helpers ----
+# ---- INIT DATABASE ----
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # Leads table
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS leads (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              user_id INTEGER,
-              phone TEXT,
-              name TEXT,
-              message TEXT,
-              timestamp TEXT,
-              handled INTEGER DEFAULT 0
+    # Users table
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE,
+        password_hash TEXT
     )
-    ''')
+    """)
 
-    # User table 
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE,
-                password TEXT,
-                whatsapp_token TEXT,
-                phone_number_id TEXT,
-                verify_token TEXT
-    )''')
-
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE,
-                password_hash TEXT,
-                whatsapp_access_token TEXT,
-                whatsapp_phone_id TEXT,
-                whatsapp_verify_token TEXT
-    )''')
+    # Leads table
+    c.execute("""
+    CREATE TABLE IS NOT EXISTS leads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone TEXT,
+    name TEXT,
+    message TEXT,
+    timestamp TEXT,
+    handled INTEGER DEFAULT 0
+    )
+    """)
 
 
     conn.commit()
     conn.close()
+
+#---- LEADS HELPERS ----
 
 def insert_lead(phone, name, message):
     conn = sqlite3.connect(DB_PATH)
@@ -93,7 +82,7 @@ def insert_lead(phone, name, message):
 def get_leads():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT id, phone, name, message, timestamp, handled FROM leads WHERE user_id=? ORDER BY id DESC', (user_id,))
+    c.execute('SELECT id, phone, name, message, timestamp, handled FROM leads ORDER BY id DESC')
     rows = c.fetchall()
     conn.close()
     return rows
@@ -194,8 +183,7 @@ def signup():
         try:
             c.execute("INSERT INTO users (email, password_hash) VALUES (?, ?)", (email, password_hash))
             conn.commit()
-        except Exception as e:
-            print("Signup error:", e)
+        except:
             flash("Email already registered", "danger")
             return redirect(url_for('signup'))
         conn.close()
@@ -205,6 +193,8 @@ def signup():
 
     return render_template('signup.html')
 
+# LOGIN
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -213,7 +203,7 @@ def login():
 
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("SELECT id, password FROM users WHERE email=?", (email,))
+        c.execute("SELECT id, password_hash FROM users WHERE email=?", (email,))
         user = c.fetchone()
         conn.close()
 
@@ -225,16 +215,13 @@ def login():
             return redirect(url_for('login'))
 
     return render_template('login.html')
-    
-    # Handle GET request
-    return render_template('login.html')
-        
+
+
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    user_id = session['user_id']
 
     leads = get_leads(user_id)
     return render_template('dashboard.html', leads=leads, total=len(leads))
@@ -242,6 +229,7 @@ def dashboard():
 @app.route('/export')
 def export():
     leads = get_leads()
+
     # create CSV
     buf = BytesIO()
     writer = csv.writer(buf)
@@ -249,7 +237,10 @@ def export():
     for l in leads:
         writer.writerow(l)
     buf.seek(0)
+
     return send_file(buf, mimetype='text/csv', as_attachment=True, download_name='leads.csv')
+
+# Start
 
 if __name__ == '__main__':
     init_db()
