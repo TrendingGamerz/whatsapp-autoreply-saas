@@ -101,10 +101,8 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Make sure DB is created on Railway
-@app.before_first_request
-def setup():
-    # Ensures DB exists on Railway when app starts
+# Initialize DB on startup (Flash 3.x safe)
+with app.app_context():
     init_db()
 
 #---- LEAD HELPERS ----
