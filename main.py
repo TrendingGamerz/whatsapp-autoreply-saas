@@ -303,7 +303,6 @@ def export():
     return send_file(
         mem, 
         mimetype="text/csv",
-        download_name="leads.csv",
         as_attachment=True,
         download_name="leads.csv"
     )
