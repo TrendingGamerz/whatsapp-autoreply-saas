@@ -1,4 +1,5 @@
 import os
+import io
 import sqlite3
 import json
 import requests
@@ -283,20 +284,28 @@ def export():
     user_id = session["user_id"]
     leads = get_leads(user_id)
 
-    buf = BytesIO()
+    buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["ID", "Phone", "Name", "Message", "Timestamp", "Handled"])
-    for row in leads:
-        writer.writerow(
-            [row["id"], row["phone"], row["name"], row["message"], row["timestamp"], row["handled"]]
-        )
-    buf.seek(0)
+
+    # After writing, CSV rows:
+    csv_data = buf.getvalue()
+    mem = BytesIO()
+    mem.write(csv_data.encode())
+    mem.seek(0)
+    
+    # writer.writerow(["ID", "Phone", "Name", "Message", "Timestamp", "Handled"])
+    # for row in leads:
+    #     writer.writerow(
+    #         [row["id"], row["phone"], row["name"], row["message"], row["timestamp"], row["handled"]]
+    #     )
+    # buf.seek(0)
 
     return send_file(
-        buf, 
+        mem, 
         mimetype="text/csv",
         download_name="leads.csv",
         as_attachment=True,
+        download_name="leads.csv"
     )
 
 @app.route("/logout")
