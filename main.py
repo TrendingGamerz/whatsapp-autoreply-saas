@@ -34,7 +34,11 @@ except Exception:
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET", "dev_secret")
 
-DB_PATH = "data.db"
+#ensure /db directory exists
+if not os.path.exists('db'):
+    os.makedirs('db')
+
+DB_PATH = os.path.join(os.path.dirname(__file__), 'db', 'data.db')
 
 # Global WhatsApp config (v1: same for all users)
 WHATSAPP_VERIFY_TOKEN = os.getenv(
@@ -284,24 +288,28 @@ def export():
     user_id = session["user_id"]
     leads = get_leads(user_id)
 
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-
-    # After writing, CSV rows:
-    csv_data = buf.getvalue()
     mem = BytesIO()
-    mem.write(csv_data.encode())
-    mem.seek(0)
+    leads = get_leads(user_id)
+
+    mem = BytesIO()
+    writer = csv.writer(mem)
+
+    writer.writerow(["ID", "Phone", "Name", "Message", "Timestamp", "Handled"])
+
+    for row in leads:
+        writer.writerow([
+            row["id"],
+            row["phone"],
+            row["name"],
+            row["message"],
+            row["timestamp"],
+            row["handled"]
+        ])
     
-    # writer.writerow(["ID", "Phone", "Name", "Message", "Timestamp", "Handled"])
-    # for row in leads:
-    #     writer.writerow(
-    #         [row["id"], row["phone"], row["name"], row["message"], row["timestamp"], row["handled"]]
-    #     )
-    # buf.seek(0)
+    mem.seek(0)
 
     return send_file(
-        mem, 
+        mem,
         mimetype="text/csv",
         as_attachment=True,
         download_name="leads.csv"
