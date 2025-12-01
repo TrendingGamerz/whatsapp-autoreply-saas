@@ -288,14 +288,14 @@ def export():
     user_id = session["user_id"]
     leads = get_leads(user_id)
 
-    mem = BytesIO()
-    leads = get_leads(user_id)
+    # Use StringIO for CSV text
+    csv_buffer = io.StringIO()
+    writer = csv.writer(csv_buffer)
 
-    mem = BytesIO()
-    writer = csv.writer(mem)
-
+    # CSV Header
     writer.writerow(["ID", "Phone", "Name", "Message", "Timestamp", "Handled"])
 
+    # CSV Rows
     for row in leads:
         writer.writerow([
             row["id"],
@@ -305,8 +305,10 @@ def export():
             row["timestamp"],
             row["handled"]
         ])
-    
-    mem.seek(0)
+
+    # Convert to bytes for Flask download
+    csv_data = csv_buffer.getvalue().encode("utf-8")
+    mem = BytesIO()
 
     return send_file(
         mem,
