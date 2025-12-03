@@ -1,6 +1,5 @@
 import os
 import io
-import sqlite3
 import json
 import requests
 import csv
@@ -19,10 +18,23 @@ from flask import (
 )
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
+from supabase import create_client, Client
 
 # ---- ENV & CONIG ----
 
 load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET", "dev_secret")
+
+# --- SUPABASE CLIENT ----
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ---- WHATSAPP CONFIG ----
 
 CONFIG = {}
 try:
@@ -30,15 +42,6 @@ try:
         CONFIG = json.load(f)
 except Exception:
     CONFIG = {}
-
-app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET", "dev_secret")
-
-#ensure /db directory exists
-if not os.path.exists('db'):
-    os.makedirs('db')
-
-DB_PATH = os.path.join(os.path.dirname(__file__), 'db', 'data.db')
 
 # Global WhatsApp config (v1: same for all users)
 WHATSAPP_VERIFY_TOKEN = os.getenv(
@@ -56,76 +59,31 @@ AUTO_REPLY_MESSAGE = os.getenv(
 
 # ---- DB HELPERS ----
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def create_user(email, password_hash):
+    supabase.table("users").insert({
+        "email": email,
+        "password_hash": password_hash
+    }).execute()
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    # Users table
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE,
-            password_hash TEXT
-            )
-            """
-    )
-
-    # Leads table
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS leads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            phone TEXT,
-            name TEXT,
-            message TEXT,
-            timestamp TEXT,
-            handled INTEGER DEFAULT 0
-            )
-            """
-    )
-
-    conn.commit()
-    conn.close()
-
-# Create tables at import time (works with Flask 3 & Gunicorn)
-with app.app_context():
-    init_db()
+def get_user_by_email(email):
+    result = supabase.table("users").select("*").eq("email", email).execute()
+    if result.data:
+        return result.data[0]
+    return None
 
 def insert_lead(user_id, phone, name, message):
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO leads (user_id, phone, name, message, timestamp)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (user_id, phone, name, message, datetime.utcnow().isoformat()),
-    )
-    conn.commit()
-    conn.close()
+    supabase.table("leads").insert({
+        "user_id": user_id,
+        "phone": phone,
+        "name": name, 
+        "message": message,
+        "timestamp": datetime.utcnow().isoformat(),
+        "handled": 0
+    }).execute()
 
 def get_leads(user_id):
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        """
-        SELECT id, phone, name, message, timestamp, handled
-        FROM leads
-        WHERE user_id = ?
-        ORDER BY id DESC
-        """,
-        (user_id,),
-    )
-    rows = c.fetchall()
-    conn.close()
-    return rows
+    result = supabase.table("leads").select("*").eq("user_id", user_id).order("id", desc=True).execute() 
+    return result.data or []
 
 # ---- WHATSAPP WEBHOOK ----
 
@@ -229,20 +187,11 @@ def signup():
         
         hashed = generate_password_hash(pwd)
 
-        conn = get_db()
-        c = conn.cursor()
-        try:
-            c.execute(
-                "INSERT INTO users (email, password_hash) VALUES (?, ?)",
-                (email, hashed),
-            )
-            conn.commit()
-        except Exception as e:
-            print("Signup error:", e)
+        if get_user_by_email(email):
             flash("Email already registered", "danger")
-            conn.close()
             return redirect(url_for("signup"))
-        conn.close()
+        
+        create_user(email, hashed)
 
         flash("Account created! You can now log in.", "success")
         return redirect(url_for("login"))
@@ -255,11 +204,7 @@ def login():
         email = request.form.get("email")
         pwd = request.form.get("password")
 
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("SELECT id, password_hash FROM users WHERE email = ?", (email,))
-        user = c.fetchone()
-        conn.close()
+        user = get_user_by_email(email)
 
         if user and check_password_hash(user["password_hash"], pwd):
             session["user_id"] = user["id"]
@@ -308,7 +253,10 @@ def export():
 
     # Convert to bytes for Flask download
     csv_data = csv_buffer.getvalue().encode("utf-8")
+
     mem = BytesIO()
+    mem.write(csv_data)
+    mem.seek(0)
 
     return send_file(
         mem,
